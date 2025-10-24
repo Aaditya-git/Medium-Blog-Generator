@@ -2,8 +2,8 @@
 from typing import Optional, Dict, Any, List
 
 class ClaudeClient:
-    \"\"\"Very small wrapper.
-    If ANTHROPIC_API_KEY is absent, returns None so stages use fallback data.\"\"\"
+    """Very small wrapper.
+    If ANTHROPIC_API_KEY is absent, returns None so stages use fallback data."""
     def __init__(self):
         self.api_key = os.environ.get('ANTHROPIC_API_KEY')
 
