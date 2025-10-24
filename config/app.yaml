@@ -1,0 +1,8 @@
+auto_post:
+  medium: true
+paths:
+  drive_root: "/ContentRuns"
+  local_output: "./run/outputs"
+  published_root: "./run/PUBLISHED"
+publish:
+  medium_tags_default: ["AI","Data","Engineering","Tutorial","RAG"]
