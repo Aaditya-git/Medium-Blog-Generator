@@ -1,27 +1,172 @@
 #!/usr/bin/env python3
-import json, sys, pathlib
+# -*- coding: utf-8 -*-
+"""
+browser-mcp-python:
+- initialize, tools/list, tools/call, prompts/list, resources/list
+- UTF-8 stdout/stderr (Windows-safe)
+- Tool: medium_publish_from_folder { folder: string }
+"""
+import json, sys, pathlib, io
+from typing import Any, Dict
 from playwright.sync_api import sync_playwright
-def send(o): print(json.dumps(o)); sys.stdout.flush()
-def respond(i,r): send({'jsonrpc':'2.0','id':i,'result':r})
+
+# ---- Encoding hardening ------------------------------------------------------
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+HERE = pathlib.Path(__file__).resolve().parent
+
+def send(o: Dict[str, Any]) -> None:
+    sys.stdout.write(json.dumps(o, ensure_ascii=True) + "\n")
+    sys.stdout.flush()
+
+def respond(req_id: int, result: Dict[str, Any]) -> None:
+    send({"jsonrpc": "2.0", "id": req_id, "result": result})
+
+def respond_error(req_id: int, code: int, msg: str) -> None:
+    send({"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": msg}})
+
+# ---- Utility -----------------------------------------------------------------
+def _split_title_body(markdown: str) -> tuple[str, str]:
+    lines = markdown.splitlines()
+    if lines and lines[0].lstrip().startswith("# "):
+        title = lines[0].lstrip()[2:].strip()
+        body = "\n".join(lines[1:]).lstrip()
+        return title or "Untitled", body
+    for i, ln in enumerate(lines):
+        if ln.strip():
+            return ln.strip().lstrip("# ").strip() or "Untitled", "\n".join(lines[i + 1:]).lstrip()
+    return "Untitled", markdown
+
+def _load_markdown(folder: pathlib.Path) -> str:
+    md = folder / "draft.md"
+    if not md.exists():
+        raise FileNotFoundError(f"draft.md not found in {folder}")
+    return md.read_text(encoding="utf-8")
+
+def publish_from_folder(folder: str) -> Dict[str, Any]:
+    fp = pathlib.Path(folder).resolve()
+    if not fp.exists():
+        return {"ok": False, "error": f"folder not found: {fp}"}
+    markdown = _load_markdown(fp)
+    title, body = _split_title_body(markdown)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context()
+        page = context.new_page()
+        page.goto("https://medium.com/new-story", wait_until="load", timeout=60000)
+
+        try:
+            page.keyboard.type(title)
+            page.keyboard.press("Enter")
+            page.keyboard.type("\n" + body)
+        except Exception:
+            page.click("body")
+            page.keyboard.type(title)
+            page.keyboard.press("Enter")
+            page.keyboard.type("\n" + body)
+
+        page.wait_for_timeout(1500)
+        url = page.url
+        browser.close()
+
+    return {"ok": True, "url": url}
+
+# ---- MCP main loop -----------------------------------------------------------
 def main():
-    for l in sys.stdin:
-        m=json.loads(l); rid=m.get('id'); method=m.get('method')
-        if method=='initialize':
-            respond(rid,{'protocolVersion':'2024-11-05','serverInfo':{'name':'browser-mcp-python','version':'1.0'},'capabilities':{'tools':{}}})
-            send({'jsonrpc':'2.0','method':'notifications/ready','params':{'capabilities':{'tools':{}}}}); continue
-        if method=='tools/list':
-            respond(rid,{'tools':[{'name':'medium.publish_from_folder','description':'Publish Medium draft','inputSchema':{'type':'object','properties':{'folder':{'type':'string'}},'required':['folder']}}]}); continue
-        if method=='tools/call':
-            folder=m['params']['arguments']['folder']
-            try:
-                with sync_playwright() as p:
-                    b=p.chromium.launch(headless=False)
-                    c=b.new_context(); pg=c.new_page()
-                    pg.goto('https://medium.com/new-story',wait_until='load')
-                    pg.keyboard.type('Demo Title'); pg.keyboard.press('Enter')
-                    pg.keyboard.type('\\nDemo body'); pg.wait_for_timeout(1000)
-                    url=pg.url; b.close()
-                respond(rid,{'content':[{'type':'text','text':json.dumps({'ok':True,'url':url})}],'isError':False})
-            except Exception as e:
-                respond(rid,{'content':[{'type':'text','text':json.dumps({'ok':False,'error':str(e)})}],'isError':True})
-if __name__=='__main__': main()
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except Exception:
+            continue
+
+        method = msg.get("method")
+        req_id = msg.get("id")
+
+        if method == "initialize":
+            respond(req_id, {
+                "protocolVersion": "2025-06-18",   # align with client
+                "serverInfo": {"name": "browser-mcp-python", "version": "1.0.2"},
+                "capabilities": {"tools": {}}
+            })
+            send({"jsonrpc": "2.0", "method": "notifications/ready",
+                  "params": {"capabilities": {"tools": {}}}})
+            continue
+
+        if method == "prompts/list":
+            respond(req_id, {"prompts": []})
+            continue
+
+        if method == "resources/list":
+            respond(req_id, {"resources": []})
+            continue
+
+        if method == "tools/list":
+            respond(req_id, {
+                "tools": [
+                    {
+                        "name": "medium_publish_from_folder",  # <-- underscore name
+                        "description": "Publish a Medium story from a folder containing draft.md",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "folder": {
+                                    "type": "string",
+                                    "minLength": 3,
+                                    # simple path-ish pattern: letters, digits, spaces, colon, slash, backslash, dash, underscore, dot
+                                    "pattern": "^[A-Za-z0-9 .:_\\\\/\\-]{3,}$"
+                                }
+                            },
+                            "required": ["folder"],
+                            "additionalProperties": False
+                        }
+                    }
+                ]
+            })
+            continue
+
+        if method == "tools/call":
+            params = msg.get("params") or {}
+            name = params.get("name")
+            args = params.get("arguments") or {}
+
+            if name == "medium_publish_from_folder":
+                folder = args.get("folder")
+                if not isinstance(folder, str) or not folder.strip():
+                    respond(req_id, {
+                        "content": [{"type": "text", "text": json.dumps({"ok": False, "error": "folder (non-empty string) required"})}],
+                        "isError": True
+                    })
+                    continue
+                try:
+                    res = publish_from_folder(folder.strip())
+                    respond(req_id, {
+                        "content": [{"type": "text", "text": json.dumps(res)}],
+                        "isError": not res.get("ok", False)
+                    })
+                except Exception as e:
+                    respond(req_id, {
+                        "content": [{"type": "text", "text": json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"})}],
+                        "isError": True
+                    })
+                continue
+
+            respond(req_id, {
+                "content": [{"type": "text", "text": json.dumps({"ok": False, "error": f"unknown tool: {name}"})}],
+                "isError": True
+            })
+            continue
+
+        if req_id is not None:
+            respond_error(req_id, -32601, f"Method not found: {method}")
+
+if __name__ == "__main__":
+    main()
