@@ -1,0 +1,5 @@
+[1] Optimizing Data Warehousing: Techniques for Faster Query Performance — https://medium.com/muthoni-wanyoike/optimizing-data-warehousing-techniques-for-faster-query-performance-c0983c30850f (accessed: 2025-10-24)
+[2] Techniques of Data Warehouse Performance Optimization — https://bi-insider.com/portfolio-item/techniques-of-data-warehouse-performance-optimization/ (accessed: 2025-10-24)
+[3] Data Warehouse Optimization Techniques: Boost Performance — https://www.advsyscon.com/blog/data-warehouse-optimization-techniques/ (accessed: 2025-10-24)
+[4] 9 Data Warehouse Optimization Strategies for 5X Performance — https://www.aegissofttech.com/insights/data-warehouse-optimization/ (accessed: 2025-10-24)
+[5] The Ultimate Guide to Data Warehouse Optimization — https://www.5x.co/blogs/data-warehouse-optimization (accessed: 2025-10-24)

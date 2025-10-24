@@ -1,0 +1,2 @@
+[1] Overview: chunking strategies in RAG systems — about:offline-overview (accessed: 2025-10-24)
+[2] Best Practices for chunking strategies in RAG systems — about:offline-best-practices (accessed: 2025-10-24)

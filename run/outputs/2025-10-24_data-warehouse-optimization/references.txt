@@ -1,2 +1,0 @@
-[1] Overview: data warehouse optimization — about:offline-overview (accessed: 2025-10-24)
-[2] Best Practices for data warehouse optimization — about:offline-best-practices (accessed: 2025-10-24)

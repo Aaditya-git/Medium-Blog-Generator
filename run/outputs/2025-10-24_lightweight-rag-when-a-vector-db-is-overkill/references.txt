@@ -1,1 +1,0 @@
-[1] A Practical Survey of Retrieval-Augmented Generation — https://arxiv.org/abs/2401.00001 (accessed: 2025-10-24)
